@@ -20,18 +20,68 @@
   -> Mac 使用 adb connect <projector-ip>:5555
 ```
 
-## 为什么仓库没有发布厂商转发客户端
+## 公开的转发客户端如何工作
 
-本次验证中，支持端使用设备当前上报的远程调试路由和设备序列号，创建一次性客户端 ID，经厂商转发通道向该设备发送文本命令，并等待设备返回“已接收”和“执行结束”。
+仓库现在提供 `tools/remote_assistance_client.py`，实现了本次验证使用的连接协议，但不包含任何真实设备数据。客户端需要两个由你自己的 C1D 上报的值：
 
-这段客户端一旦连同真实服务器地址、设备路由或序列号公开，本质上就是一个远程系统 Shell 客户端，可能被用于未授权设备。因此仓库只公开：
+```json
+{
+  "remoteDebugUrl": "ws://<设备上显示的厂商转发地址>",
+  "deviceSerial": "<你自己的设备序列号>"
+}
+```
 
-- 用户授权和身份核对流程；
-- 在官方支持端或你自己的私有、当前会话客户端中执行的设备命令；
-- ADB 公钥授权原则；
-- 标准 ADB 接管和关闭流程。
+可以使用设置助手的“显示远程协助连接信息”在投影仪本机读取：
 
-仓库不公开厂商私有服务器地址、消息寻址细节、个人设备路由、设备序列号或可直接复用的转发客户端。复现这一段需要厂商提供的支持端控制台，或者仅限你自己设备、与当前已授权会话绑定的私有客户端。
+- `deviceSerial`：来自 `ro.serialno`，为空时回退到 `ro.boot.serialno`。
+- `remoteDebugUrl`：来自 `persist.obe.REMOTE_DEBUG_URL`。
+
+这两个值应只保存在自己的电脑上：
+
+```bash
+mkdir -p private
+cp examples/remote-route.example.json private/remote-route.json
+```
+
+编辑 `private/remote-route.json`，填入投影仪屏幕显示的真实值。`private/` 和 `remote-route.json` 已被 `.gitignore` 排除。
+
+### 连接协议
+
+客户端每次执行都会：
+
+1. 生成随机的一次性客户端 ID，例如 `c1d-owner-<uuid>`。
+2. 连接 `<remoteDebugUrl>/webSocket/<client-id>`。
+3. 向 WebSocket 发送：
+
+```json
+{
+  "from": "<client-id>",
+  "to": "<deviceSerial>",
+  "type": "chat",
+  "text": "<预定义设备命令>"
+}
+```
+
+4. 只接收 `from=deviceSerial` 且 `to=client-id` 的响应。
+5. 收到以 `收到:` 开头的消息后标记设备已接受命令。
+6. 收到以 `执行结束` 结尾的消息后标记命令完成并关闭连接。
+
+实现没有提供任意 `--command` 参数，只开放身份探测、ADB 状态、启动/停止 `adbd` 和授权当前电脑公钥五个动作。修改设备的动作必须用 `--confirm-device-serial` 再次提交完整序列号。
+
+### 安装客户端依赖
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+如果希望避免修改全局 Python 环境，也可以使用 `uv`：
+
+```bash
+uv run --with 'websocket-client>=1.8,<2' \
+  python tools/remote_assistance_client.py --help
+```
+
+仓库公开连接过程、消息格式与客户端源码，但不会提交真实转发地址、真实序列号或任何 ADB 私钥。
 
 ## 1. 由设备所有者开启远程协助
 
@@ -40,7 +90,14 @@
 3. 保持投影仪处于可观察状态，不要在无人看管时启动调试。
 4. 支持端先执行只读身份检查，不要直接启动 ADB。
 
-在已授权的远程命令控制台中执行：
+使用公开客户端执行：
+
+```bash
+python3 tools/remote_assistance_client.py \
+  --route private/remote-route.json probe
+```
+
+客户端在设备端执行的等价只读命令是：
 
 ```sh
 id
@@ -53,7 +110,14 @@ getprop ro.product.name
 
 ## 2. 检查 C1D 当前的 ADB 状态
 
-在远程命令控制台中执行：
+使用公开客户端执行：
+
+```bash
+python3 tools/remote_assistance_client.py \
+  --route private/remote-route.json adb-status
+```
+
+设备端等价命令是：
 
 ```sh
 printf 'adb_enabled='; settings get global adb_enabled
@@ -72,7 +136,16 @@ printf 'adbd_state='; getprop init.svc.adbd
 
 ## 3. 通过远程协助启动网络 ADB
 
-确认上一步的端口确实是 `5555` 后，在远程命令控制台执行：
+确认上一步的端口确实是 `5555` 后执行：
+
+```bash
+python3 tools/remote_assistance_client.py \
+  --route private/remote-route.json \
+  --confirm-device-serial '<deviceSerial>' \
+  start-adbd
+```
+
+客户端在设备端执行：
 
 ```sh
 setprop ctl.start adbd
@@ -115,7 +188,17 @@ netstat -lnt 2>/dev/null | grep ':5555'
 4. 保持原文件所有者和权限。
 5. 重启 `adbd`，让授权列表重新加载。
 
-对应的设备端操作顺序如下。`<MAC_ADB_PUBLIC_KEY>` 必须替换为当前 Mac 上 `adbkey.pub` 的完整单行内容：
+公开客户端可以读取当前 Mac 的公钥并以 Base64 封装后发送，私钥不会被读取：
+
+```bash
+python3 tools/remote_assistance_client.py \
+  --route private/remote-route.json \
+  --confirm-device-serial '<deviceSerial>' \
+  --adb-public-key ~/.android/adbkey.pub \
+  authorize-key
+```
+
+客户端执行的设备端顺序等价于以下命令。`<MAC_ADB_PUBLIC_KEY>` 代表当前 Mac 上 `adbkey.pub` 的完整单行内容：
 
 ```sh
 cp -p /data/misc/adb/adb_keys /data/misc/adb/adb_keys.before-c1d-home
@@ -161,7 +244,16 @@ adb -s <projector-ip>:5555 shell getprop ro.product.name
 adb disconnect <projector-ip>:5555
 ```
 
-如果只想临时停止本次网络 ADB，在仍受控的设备端执行：
+如果只想临时停止本次网络 ADB，可以通过同一远程协助会话执行：
+
+```bash
+python3 tools/remote_assistance_client.py \
+  --route private/remote-route.json \
+  --confirm-device-serial '<deviceSerial>' \
+  stop-adbd
+```
+
+客户端在设备端执行：
 
 ```sh
 setprop ctl.stop adbd

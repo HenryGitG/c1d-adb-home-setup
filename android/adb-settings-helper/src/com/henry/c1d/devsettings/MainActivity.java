@@ -12,6 +12,10 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+
 /** Owner-operated shortcuts to settings screens already present in the C1D firmware. */
 public final class MainActivity extends Activity {
     @Override
@@ -43,6 +47,7 @@ public final class MainActivity extends Activity {
         addButton(panel, "打开 TV 开发者选项", this::openTvDeveloperSettings);
         addButton(panel, "打开 Android 开发者选项", this::openAndroidDeveloperSettings);
         addButton(panel, "打开画面缩放（C1D 调试入口）", this::openScreenSize);
+        addButton(panel, "显示远程协助连接信息", this::showRemoteAssistanceInfo);
         addButton(panel, "打开系统信息", this::openAboutSettings);
 
         setContentView(panel);
@@ -87,6 +92,30 @@ public final class MainActivity extends Activity {
             startActivity(tvAbout);
         } catch (RuntimeException ignored) {
             open(new Intent(Settings.ACTION_DEVICE_INFO_SETTINGS), "系统信息");
+        }
+    }
+
+    private void showRemoteAssistanceInfo() {
+        String serial = readProperty("ro.serialno");
+        if (serial.isEmpty()) serial = readProperty("ro.boot.serialno");
+        String route = readProperty("persist.obe.REMOTE_DEBUG_URL");
+        showMenu("仅在你自己的设备上使用，以下信息不要发布："
+                + "\n\ndeviceSerial：" + (serial.isEmpty() ? "未读取到" : serial)
+                + "\nremoteDebugUrl：" + (route.isEmpty() ? "未读取到" : route));
+    }
+
+    private String readProperty(String name) {
+        try {
+            Process process = new ProcessBuilder("getprop", name).start();
+            try (BufferedReader output = new BufferedReader(new InputStreamReader(
+                    process.getInputStream(), StandardCharsets.UTF_8))) {
+                String value = output.readLine();
+                return value == null ? "" : value.trim();
+            } finally {
+                process.destroy();
+            }
+        } catch (Exception ignored) {
+            return "";
         }
     }
 

@@ -9,4 +9,5 @@ android/adb-settings-helper/dist/
 *.keystore
 adbkey*
 device-route*.json
+remote-route.json
 private/

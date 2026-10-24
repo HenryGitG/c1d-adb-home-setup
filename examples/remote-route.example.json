@@ -1,0 +1,4 @@
+{
+  "remoteDebugUrl": "ws://relay.example.invalid:0000",
+  "deviceSerial": "REPLACE_WITH_YOUR_DEVICE_SERIAL"
+}

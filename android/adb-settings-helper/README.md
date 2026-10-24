@@ -1,8 +1,8 @@
 # C1D ADB 设置助手
 
-这是一个无特权、无网络权限的 Android TV 小工具。它只打开 C1D 固件中已有的设置页面：TV 开发者选项、Android 开发者选项、厂商画面缩放页面和系统信息。
+这是一个无特权、无网络权限的 Android TV 小工具。它打开 C1D 固件中已有的设置页面，并能在投影仪本机显示远程协助所需的 `ro.serialno` 与 `persist.obe.REMOTE_DEBUG_URL`。
 
-它不能自行开启 ADB，也不会修改系统设置。开启调试仍需设备所有者在投影仪上完成明确的按键操作。完整流程见仓库根目录的 `docs/remote-assistance-and-adb.md`。
+它不会把这些信息发送到网络，不能自行开启 ADB，也不会修改系统设置。设备序列号和远程路由应只抄入本机忽略提交的 `private/remote-route.json`。完整流程见仓库根目录的 `docs/remote-assistance-and-adb.md`。
 
 ## 构建
 
