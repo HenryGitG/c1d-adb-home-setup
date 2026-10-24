@@ -1,0 +1,12 @@
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+android/adb-settings-helper/build/
+android/adb-settings-helper/dist/
+*.apk
+*.keystore
+adbkey*
+device-route*.json
+private/
