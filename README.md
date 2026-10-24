@@ -30,11 +30,55 @@
 ## 前提
 
 - 只操作你拥有或获明确授权管理的 C1D。
+- Mac/PC 已安装 Python 3.9 或更高版本。
 - Mac/PC 已安装 Android Platform Tools，`adb version` 可正常运行。
 - 电脑与投影仪位于可信的同一局域网。
 - 不要把 5555 端口映射到公网。
 
-先阅读 [远程协助与 ADB](docs/remote-assistance-and-adb.md)，再执行 [替换 HOME](docs/replace-home.md)。
+## 最短流程
+
+### 1. 准备客户端
+
+```bash
+git clone https://github.com/HenryGitG/c1d-adb-home-setup.git
+cd c1d-adb-home-setup
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
+mkdir -p private
+cp examples/remote-route.example.json private/remote-route.json
+```
+
+先按 [设置助手构建说明](android/adb-settings-helper/README.md)生成 APK，再通过官方远程协助、U 盘安装器或设备已有的其他合法侧载入口安装并打开。公开客户端不能绕过这次首次安装。选择“显示远程协助连接信息”，把投影仪屏幕上的 `remoteDebugUrl` 和 `deviceSerial` 填入 `private/remote-route.json`。
+
+### 2. 核对设备并启动网络 ADB
+
+先在投影仪上开启系统远程协助，然后执行：
+
+```bash
+python3 tools/remote_assistance_client.py \
+  --route private/remote-route.json probe
+
+python3 tools/remote_assistance_client.py \
+  --route private/remote-route.json adb-status
+
+python3 tools/remote_assistance_client.py \
+  --route private/remote-route.json \
+  --confirm-device-serial '<deviceSerial>' \
+  start-adbd
+```
+
+如果投影仪弹出 RSA 提示，优先在屏幕上确认。如果没有可操作提示，再按详细文档使用 `authorize-key`，只授权当前电脑的公钥。
+
+### 3. 由标准 ADB 接管
+
+```bash
+adb connect <projector-ip>:5555
+adb devices -l
+adb -s <projector-ip>:5555 shell getprop ro.product.model
+```
+
+显示状态为 `device` 且型号正确后，继续执行 [安装与替换 HOME](docs/replace-home.md)。远程协议、首次公钥授权和关闭步骤见 [借助系统远程协助开启网络 ADB](docs/remote-assistance-and-adb.md)。
 
 ## 验证状态
 

@@ -1,6 +1,12 @@
 # 安装与替换 HOME
 
-配套仓库 `c1d-home-standby-ha` 提供公开版 C1D Home 源码。先按其 README 构建 APK，再在 ADB 已连接时安装：
+配套仓库 [c1d-home-standby-ha](https://github.com/HenryGitG/c1d-home-standby-ha) 提供公开版 C1D Home 源码。先按其 README 构建 APK，默认 Release 产物位于：
+
+```text
+android/home-launcher/app/build/outputs/apk/release/app-release.apk
+```
+
+然后在 ADB 已连接时安装：
 
 ```bash
 adb -s <projector-ip>:5555 install -r /path/to/home-launcher.apk

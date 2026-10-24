@@ -1,6 +1,7 @@
 .DS_Store
 .idea/
 .vscode/
+.venv/
 __pycache__/
 *.py[cod]
 android/adb-settings-helper/build/
